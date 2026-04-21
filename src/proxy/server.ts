@@ -88,49 +88,46 @@ export function clearModelsCache(): void {
  * Uses DB-stored models when available, otherwise falls back to registry.
  */
 async function fetchModels(req?: Request) {
-  
   let baseData: unknown[] = [];
   if (modelsCache && Date.now() - modelsCache.at < MODELS_TTL) {
     baseData = modelsCache.data;
   } else {
+    const counts = getConnectionCountByProvider();
+    const data: unknown[] = [];
 
+    for (const [providerId, provider] of Object.entries(PROVIDERS)) {
+      // Include providers with connections, or all providers with models defined
+      const hasConnections = (counts[providerId] ?? 0) > 0;
+      if (!hasConnections && provider.category !== "free") continue;
 
-  const counts = getConnectionCountByProvider();
-  const data: unknown[] = [];
+      const models = getModelsForProvider(providerId);
+      const freeOnly = getSetting(`provider_free_only_${providerId}`) === "true";
+      for (const m of models) {
+        if (freeOnly && !m.is_free) continue;
+        data.push({
+          id: `${providerId}/${m.id}`,
+          object: "model",
+          created: 1720000000,
+          owned_by: providerId,
+        });
+      }
+    }
 
-  for (const [providerId, provider] of Object.entries(PROVIDERS)) {
-    // Include providers with connections, or all providers with models defined
-    const hasConnections = (counts[providerId] ?? 0) > 0;
-    if (!hasConnections && provider.category !== "free") continue;
-
-    const models = getModelsForProvider(providerId);
-    const freeOnly = getSetting(`provider_free_only_${providerId}`) === "true";
-    for (const m of models) {
-      if (freeOnly && !m.is_free) continue;
-      data.push({
-        id: `${providerId}/${m.id}`,
+    if (data.length === 0) {
+      // Ultimate fallback: Qwen hardcoded models
+      const fallback = QWEN_MODELS_OAUTH.map((id) => ({
+        id: `qwen/${id}`,
         object: "model",
         created: 1720000000,
-        owned_by: providerId,
-      });
+        owned_by: "qwen",
+      }));
+      modelsCache = { data: fallback, at: Date.now() };
+      baseData = fallback;
+    } else {
+      modelsCache = { data, at: Date.now() };
+      baseData = data;
     }
   }
-
-  if (data.length === 0) {
-    // Ultimate fallback: Qwen hardcoded models
-    const fallback = QWEN_MODELS_OAUTH.map((id) => ({
-      id: `qwen/${id}`,
-      object: "model",
-      created: 1720000000,
-      owned_by: "qwen",
-    }));
-    modelsCache = { data: fallback, at: Date.now() };
-    baseData = fallback;
-  } else {
-    modelsCache = { data, at: Date.now() };
-    baseData = data;
-  }
-  } // <-- Added brace to close the `if (modelsCache...) { ... } else {` block
 
   // --- Dynamic Filtering depending on request Client API Key ---
   if (req) {
