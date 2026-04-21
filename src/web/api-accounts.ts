@@ -1,4 +1,5 @@
-import { listAccounts, removeAccount, updateAccount, type AccountPatch } from "../db/accounts.ts";
+import { listAccounts, removeAccount, updateAccount } from "../db/accounts.ts";
+import type { AccountPatch } from "../db/accounts.ts";
 import { getProxyPoolById } from "../db/pools.ts";
 import { json } from "./api-http.ts";
 

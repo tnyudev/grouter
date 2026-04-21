@@ -1,4 +1,6 @@
 import chalk from "chalk";
+import { createHash } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import { listAccounts } from "../db/accounts.ts";
 import { getSetting } from "../db/index.ts";
 import { getProviderPort, listProviderPorts } from "../db/ports.ts";
@@ -41,7 +43,8 @@ import {
 import { serveLogo } from "../web/logos.ts";
 import { handleChatCompletions } from "./chat-handler.ts";
 import { clearModelsCache, fetchModels } from "./models.ts";
-import { type BunRequest, SERVER_IDLE_TIMEOUT_SECONDS, corsHeaders, jsonResponse } from "./server-helpers.ts";
+import { SERVER_IDLE_TIMEOUT_SECONDS, corsHeaders, jsonResponse } from "./server-helpers.ts";
+import type { BunRequest } from "./server-helpers.ts";
 
 // HTML pages and static assets embedded at build time.
 // @ts-ignore
@@ -57,6 +60,39 @@ function serveWizard(): Response {
 
 function serveDashboard(): Response {
   return new Response(DASHBOARD_HTML as unknown as string, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
+const ANIMATION_TEXT = ANIMATION_JS as unknown as string;
+const ANIMATION_BYTES = Buffer.from(ANIMATION_TEXT, "utf8");
+const ANIMATION_GZIP_BYTES = gzipSync(ANIMATION_BYTES, { level: 9 });
+const ANIMATION_ETAG = `"${createHash("sha1").update(ANIMATION_BYTES).digest("hex")}"`;
+
+function hasMatchingEtag(req: Request, etag: string): boolean {
+  const ifNoneMatch = req.headers.get("if-none-match");
+  if (!ifNoneMatch) return false;
+  return ifNoneMatch
+    .split(",")
+    .map((part) => part.trim())
+    .some((candidate) => candidate === etag || candidate === "*");
+}
+
+function serveAnimation(req: Request): Response {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/javascript; charset=utf-8",
+    "Cache-Control": "public, max-age=86400",
+    ETag: ANIMATION_ETAG,
+    Vary: "Accept-Encoding",
+  };
+  if (hasMatchingEtag(req, ANIMATION_ETAG)) {
+    return new Response(null, { status: 304, headers });
+  }
+  const acceptEncoding = req.headers.get("accept-encoding") ?? "";
+  if (acceptEncoding.includes("gzip")) {
+    return new Response(ANIMATION_GZIP_BYTES, {
+      headers: { ...headers, "Content-Encoding": "gzip" },
+    });
+  }
+  return new Response(ANIMATION_BYTES, { headers });
 }
 
 function preflight(): Response {
@@ -81,10 +117,10 @@ export function startServer(port: number) {
       },
       "/setup": { GET: () => serveWizard() },
       "/public/animation.js": {
-        GET: () => new Response(ANIMATION_JS as string, { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "public, max-age=86400" } }),
+        GET: (req: Request) => serveAnimation(req),
       },
       "/public/logos/:file": {
-        GET: (req: BunRequest) => serveLogo(req.params.file!),
+        GET: (req: BunRequest) => serveLogo(req.params.file!, req),
       },
       "/dashboard": { GET: () => serveDashboard() },
 

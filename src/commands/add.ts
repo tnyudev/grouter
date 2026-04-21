@@ -2,7 +2,8 @@ import chalk from "chalk";
 import ora from "ora";
 import open from "open";
 import { select, input, password, editor, Separator } from "@inquirer/prompts";
-import { PROVIDERS, getProvider, providerHasFreeModelsById, isProviderLocked, type Provider, saveCustomProvider } from "../providers/registry.ts";
+import { PROVIDERS, getProvider, providerHasFreeModelsById, isProviderLocked, saveCustomProvider } from "../providers/registry.ts";
+import type { Provider } from "../providers/registry.ts";
 import { getAdapter } from "../auth/providers/index.ts";
 import { startCallbackListener } from "../auth/server.ts";
 import {
