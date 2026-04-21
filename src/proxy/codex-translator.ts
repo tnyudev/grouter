@@ -6,6 +6,11 @@ export interface CodexStreamState {
   model: string;
   roleSent: boolean;
   completed: boolean;
+  sawTextDelta: boolean;
+  sawToolDelta: boolean;
+  nextToolIndex: number;
+  toolCallIndexById: Map<string, number>;
+  toolArgsSeenById: Set<string>;
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -223,7 +228,39 @@ function chunkBase(state: CodexStreamState): Record<string, unknown> {
 }
 
 export function newCodexStreamState(): CodexStreamState {
-  return { id: "", model: "", roleSent: false, completed: false };
+  return {
+    id: "",
+    model: "",
+    roleSent: false,
+    completed: false,
+    sawTextDelta: false,
+    sawToolDelta: false,
+    nextToolIndex: 0,
+    toolCallIndexById: new Map<string, number>(),
+    toolArgsSeenById: new Set<string>(),
+  };
+}
+
+function roleChunk(state: CodexStreamState): string {
+  return `data: ${JSON.stringify({
+    ...chunkBase(state),
+    choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }],
+  })}\n\n`;
+}
+
+function getToolIndex(state: CodexStreamState, callId: string): number {
+  const known = state.toolCallIndexById.get(callId);
+  if (typeof known === "number") return known;
+  const idx = state.nextToolIndex++;
+  state.toolCallIndexById.set(callId, idx);
+  return idx;
+}
+
+function toolCallDeltaChunk(state: CodexStreamState, toolDelta: Record<string, unknown>): string {
+  return `data: ${JSON.stringify({
+    ...chunkBase(state),
+    choices: [{ index: 0, delta: { tool_calls: [toolDelta] }, finish_reason: null }],
+  })}\n\n`;
 }
 
 export function codexChunkToOpenAI(rawLine: string, state: CodexStreamState): string[] {
@@ -260,13 +297,9 @@ export function codexChunkToOpenAI(rawLine: string, state: CodexStreamState): st
     const out: string[] = [];
     if (!state.roleSent) {
       state.roleSent = true;
-      out.push(
-        `data: ${JSON.stringify({
-          ...chunkBase(state),
-          choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }],
-        })}\n\n`,
-      );
+      out.push(roleChunk(state));
     }
+    state.sawTextDelta = true;
     out.push(
       `data: ${JSON.stringify({
         ...chunkBase(state),
@@ -276,18 +309,111 @@ export function codexChunkToOpenAI(rawLine: string, state: CodexStreamState): st
     return out;
   }
 
+  if (type === "response.refusal.delta") {
+    const delta = typeof event.delta === "string" ? event.delta : "";
+    if (!delta) return [];
+    const out: string[] = [];
+    if (!state.roleSent) {
+      state.roleSent = true;
+      out.push(roleChunk(state));
+    }
+    state.sawTextDelta = true;
+    out.push(
+      `data: ${JSON.stringify({
+        ...chunkBase(state),
+        choices: [{ index: 0, delta: { content: delta }, finish_reason: null }],
+      })}\n\n`,
+    );
+    return out;
+  }
+
+  if (type === "response.output_item.added" || type === "response.output_item.done") {
+    const item = toRecord(event.item);
+    if (!item) return [];
+    if (item.type !== "function_call") return [];
+
+    const callId = typeof item.call_id === "string" ? item.call_id : "";
+    if (!callId) return [];
+    const alreadyKnown = state.toolCallIndexById.has(callId);
+    const name = typeof item.name === "string" ? item.name : "tool";
+    const args = typeof item.arguments === "string" ? item.arguments : "";
+    const toolIndex = getToolIndex(state, callId);
+    if (type === "response.output_item.added" && alreadyKnown) return [];
+    if (type === "response.output_item.done" && state.toolArgsSeenById.has(callId)) return [];
+
+    const out: string[] = [];
+    if (!state.roleSent) {
+      state.roleSent = true;
+      out.push(roleChunk(state));
+    }
+    out.push(
+      toolCallDeltaChunk(state, {
+        index: toolIndex,
+        id: callId,
+        type: "function",
+        function: { name, arguments: args || "" },
+      }),
+    );
+    state.sawToolDelta = true;
+    if (args) state.toolArgsSeenById.add(callId);
+    return out;
+  }
+
+  if (type === "response.function_call_arguments.delta" || type === "response.function_call_arguments.done") {
+    const callId = typeof event.call_id === "string" ? event.call_id : "";
+    const delta = typeof event.delta === "string"
+      ? event.delta
+      : typeof event.arguments === "string"
+        ? event.arguments
+        : "";
+    if (!callId || !delta) return [];
+
+    const toolIndex = getToolIndex(state, callId);
+    const out: string[] = [];
+    if (!state.roleSent) {
+      state.roleSent = true;
+      out.push(roleChunk(state));
+    }
+    out.push(
+      toolCallDeltaChunk(state, {
+        index: toolIndex,
+        function: { arguments: delta },
+      }),
+    );
+    state.sawToolDelta = true;
+    state.toolArgsSeenById.add(callId);
+    return out;
+  }
+
   if (type === "response.completed" || type === "response.done" || type === "response.incomplete") {
     if (state.completed) return [];
     const response = toRecord(event.response) ?? {};
     if (typeof response.id === "string") state.id = response.id;
     if (typeof response.model === "string") state.model = response.model;
+    const { text, toolCalls } = extractResponseTextAndTools(response);
+    const hasToolCalls = toolCalls.length > 0 || state.sawToolDelta;
     const usage = mapUsage(response.usage);
     const finishReason = mapFinishReason(
       typeof response.status === "string" ? response.status : "completed",
-      false,
+      hasToolCalls,
       toRecord(response.incomplete_details),
     );
     state.completed = true;
+    const out: string[] = [];
+
+    // Fallback: some upstream responses only include full text on completion.
+    if (!state.sawTextDelta && text) {
+      if (!state.roleSent) {
+        state.roleSent = true;
+        out.push(roleChunk(state));
+      }
+      out.push(
+        `data: ${JSON.stringify({
+          ...chunkBase(state),
+          choices: [{ index: 0, delta: { content: text }, finish_reason: null }],
+        })}\n\n`,
+      );
+    }
 
     const doneChunk: Record<string, unknown> = {
       ...chunkBase(state),
@@ -295,7 +421,9 @@ export function codexChunkToOpenAI(rawLine: string, state: CodexStreamState): st
     };
     if (usage) doneChunk.usage = usage;
 
-    return [`data: ${JSON.stringify(doneChunk)}\n\n`, "data: [DONE]\n\n"];
+    out.push(`data: ${JSON.stringify(doneChunk)}\n\n`);
+    out.push("data: [DONE]\n\n");
+    return out;
   }
 
   if (type === "error" || type === "response.failed") {
