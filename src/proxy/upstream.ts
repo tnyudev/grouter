@@ -14,7 +14,7 @@
 //   ⚠️ kiro            — AWS CodeWhisperer event-stream binary. Needs translator.
 //   ⚠️ cursor          — Connect-RPC over proto. Needs translator.
 
-import { platform, arch } from "node:os";
+import { arch } from "node:os";
 import type { Connection } from "../types.ts";
 import { parseProviderData, decodeJwtPayload, mapPlatformOs } from "../utils.ts";
 import { buildQwenHeaders, buildQwenUrl, QWEN_SYSTEM_MSG } from "../constants.ts";
@@ -74,15 +74,6 @@ function extractCodexAccountId(token: string, providerData: Record<string, unkno
 // ── Header helpers ───────────────────────────────────────────────────────────
 
 
-
-function buildKimiHeaders(): Record<string, string> {
-  return {
-    "X-Msh-Platform":     "9router",
-    "X-Msh-Version":      "2.1.2",
-    "X-Msh-Device-Model": `${platform()} ${arch()}`,
-    "X-Msh-Device-Id":    `kimi-${Date.now()}`,
-  };
-}
 
 function buildCopilotHeaders(copilotToken: string, stream: boolean): Record<string, string> {
   return {

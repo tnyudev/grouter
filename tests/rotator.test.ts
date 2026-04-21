@@ -14,8 +14,9 @@ const { setModelLock } = await import("../src/rotator/lock.ts");
 
 function insertConnection(overrides: Partial<Connection> & { id: string }): Connection {
   const now = new Date().toISOString();
+  const { id, ...rest } = overrides;
   const row: Connection = {
-    id: overrides.id,
+    id,
     provider: "openai",
     auth_type: "oauth",
     email: null,
@@ -38,7 +39,7 @@ function insertConnection(overrides: Partial<Connection> & { id: string }): Conn
     last_used_at: null,
     created_at: now,
     updated_at: now,
-    ...overrides,
+    ...rest,
   };
 
   db().query(
@@ -94,11 +95,6 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  try {
-    db().close();
-  } catch {
-    // Ignore close failures in test cleanup.
-  }
   try {
     rmSync(testHome, { recursive: true, force: true });
   } catch {

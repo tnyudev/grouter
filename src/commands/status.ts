@@ -1,6 +1,5 @@
 import chalk from "chalk";
 import { listAccounts } from "../db/accounts.ts";
-import { getAccountById } from "../db/accounts.ts";
 import { getStrategy, getStickyLimit, getProxyPort } from "../db/index.ts";
 import { getActiveModelLocks } from "../rotator/lock.ts";
 import { formatDuration } from "../rotator/fallback.ts";
@@ -8,7 +7,7 @@ import { getUsageTotals, getUsageByModel, getUsageByAccount } from "../db/usage.
 import { estimateCostUSD } from "../constants.ts";
 import { isRunning, readPid } from "../daemon/index.ts";
 
-// ── Formatters ────────────────────────────────────────────────────────────────
+// â”€â”€ Formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
@@ -23,14 +22,13 @@ function fmtCost(usd: number): string {
 }
 
 function bar(n: number, total: number, width = 14): string {
-  if (total === 0) return chalk.gray("·".repeat(width));
+  if (total === 0) return chalk.gray("Â·".repeat(width));
   const filled = Math.round((n / total) * width);
-  return chalk.cyan("█".repeat(filled)) + chalk.gray("░".repeat(width - filled));
+  return chalk.cyan("â–ˆ".repeat(filled)) + chalk.gray("â–‘".repeat(width - filled));
 }
 
-const SEP = chalk.gray("  " + "─".repeat(53));
 
-// ── Command ───────────────────────────────────────────────────────────────────
+// â”€â”€ Command â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function statusCommand(): void {
   const accounts  = listAccounts();
@@ -50,17 +48,17 @@ export function statusCommand(): void {
 
   console.log("");
 
-  // ── Proxy ────────────────────────────────────────────────────────────────
+  // â”€â”€ Proxy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   console.log(`  ${chalk.bold("Proxy")}`);
   if (running) {
-    console.log(`    ${chalk.green("●")} running  ${chalk.gray(`PID ${pid}`)}  ${chalk.gray("→")}  ${chalk.white(`http://localhost:${port}`)}`);
+    console.log(`    ${chalk.green("â—")} running  ${chalk.gray(`PID ${pid}`)}  ${chalk.gray("â†’")}  ${chalk.white(`http://localhost:${port}`)}`);
   } else {
-    console.log(`    ${chalk.dim("○")} stopped  ${chalk.gray(`run ${chalk.cyan("grouter serve on")}`)}`);
+    console.log(`    ${chalk.dim("â—‹")} stopped  ${chalk.gray(`run ${chalk.cyan("grouter serve on")}`)}`);
   }
-  console.log(`    ${chalk.gray("strategy")}   ${chalk.cyan(strategy)}${strategy === "round-robin" ? chalk.gray(` · sticky ×${getStickyLimit()}`) : ""}`);
+  console.log(`    ${chalk.gray("strategy")}   ${chalk.cyan(strategy)}${strategy === "round-robin" ? chalk.gray(` Â· sticky Ã—${getStickyLimit()}`) : ""}`);
   console.log("");
 
-  // ── Accounts ──────────────────────────────────────────────────────────────
+  // â”€â”€ Accounts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Derive effective status: if "unavailable" but the lock already expired, treat as active
   const accountsWithStatus = accounts.map((acc) => {
     const locks = getActiveModelLocks(acc.id);
@@ -69,24 +67,21 @@ export function statusCommand(): void {
     return { ...acc, effective, locks };
   });
 
-  const active      = accountsWithStatus.filter((a) => a.is_active && a.effective === "active").length;
-  const unavailable = accountsWithStatus.filter((a) => a.effective === "unavailable").length;
-  const unknown     = accountsWithStatus.filter((a) => a.effective === "unknown" || a.effective === "").length;
 
   console.log(`  ${chalk.bold("Accounts")}  ${chalk.gray(`(${accounts.length} total)`)}`);
   for (const acc of accountsWithStatus) {
     const label   = acc.email ?? acc.id.slice(0, 8);
     const locks   = acc.locks;
     const statusDot =
-      !acc.is_active             ? chalk.gray("○") :
-      acc.effective === "active" ? chalk.green("●") :
-      acc.effective === "unavailable" ? chalk.red("●") :
-      chalk.yellow("●");
+      !acc.is_active             ? chalk.gray("â—‹") :
+      acc.effective === "active" ? chalk.green("â—") :
+      acc.effective === "unavailable" ? chalk.red("â—") :
+      chalk.yellow("â—");
     const lockStr = locks.length > 0
       ? chalk.yellow(` [locked: ${locks.map((l) => l.model === "__all" ? "ALL" : l.model).join(", ")}]`)
       : "";
     const usageRow = byAccount.find((r) => r.account_id === acc.id);
-    const tokStr   = usageRow ? chalk.gray(` ${fmtNum(usageRow.total_tokens)}t · ${usageRow.requests}req`) : "";
+    const tokStr   = usageRow ? chalk.gray(` ${fmtNum(usageRow.total_tokens)}t Â· ${usageRow.requests}req`) : "";
     const statusHint =
       acc.effective === "unavailable" ? chalk.red(" [rate limited]") :
       acc.effective === "unknown"     ? chalk.gray(" [not tested yet]") :
@@ -95,7 +90,7 @@ export function statusCommand(): void {
   }
   console.log("");
 
-  // ── Usage totals ──────────────────────────────────────────────────────────
+  // â”€â”€ Usage totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   console.log(`  ${chalk.bold("Usage totals")}`);
   console.log("");
   console.log(
@@ -115,7 +110,7 @@ export function statusCommand(): void {
   );
   console.log("");
 
-  // ── Per model breakdown ───────────────────────────────────────────────────
+  // â”€â”€ Per model breakdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (byModel.length > 0) {
     console.log(`  ${chalk.bold("By model")}`);
     console.log("");
@@ -135,7 +130,7 @@ export function statusCommand(): void {
     console.log("");
   }
 
-  // ── Active locks ──────────────────────────────────────────────────────────
+  // â”€â”€ Active locks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const allLocks = accounts.flatMap((a) =>
     getActiveModelLocks(a.id).map((l) => ({ acc: a, lock: l })),
   );
@@ -145,7 +140,7 @@ export function statusCommand(): void {
       const label = acc.email ?? acc.id.slice(0, 8);
       const model = lock.model === "__all" ? "ALL models" : lock.model;
       const eta   = formatDuration(new Date(lock.until).getTime() - Date.now());
-      console.log(`    ${chalk.cyan(label)}  ${chalk.gray("·")}  ${model}  ${chalk.yellow(`resets in ${eta}`)}`);
+      console.log(`    ${chalk.cyan(label)}  ${chalk.gray("Â·")}  ${model}  ${chalk.yellow(`resets in ${eta}`)}`);
     }
     console.log("");
   }
