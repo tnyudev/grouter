@@ -125,39 +125,36 @@ export function startServer(port: number) {
       "/dashboard": { GET: () => serveDashboard() },
 
       // Dashboard API.
-      "/api/status": { GET: () => handleStatus(), OPTIONS: preflight },
-      "/api/auth/start": { POST: (req: Request) => handleAuthStart(req), OPTIONS: preflight },
-      "/api/auth/poll": { POST: (req: Request) => handleAuthPoll(req), OPTIONS: preflight },
-      "/api/auth/authorize": { POST: (req: Request) => handleAuthAuthorize(req), OPTIONS: preflight },
-      "/api/auth/callback": { GET: (req: Request) => handleAuthCallback(req), OPTIONS: preflight },
-      "/api/auth/import": { POST: (req: Request) => handleAuthImport(req), OPTIONS: preflight },
-      "/api/accounts/:id/toggle": { POST: (req: BunRequest) => handleAccountToggle(req.params.id!), OPTIONS: preflight },
-      "/api/accounts/:id": { DELETE: (req: BunRequest) => handleAccountRemove(req.params.id!), OPTIONS: preflight },
-      "/api/setup-status": { GET: () => handleSetupStatus(), OPTIONS: preflight },
-      "/api/setup-done": { POST: () => handleSetupDone(), OPTIONS: preflight },
+      "/api/status": { GET: () => handleStatus() },
+      "/api/auth/start": { POST: (req: Request) => handleAuthStart(req) },
+      "/api/auth/poll": { POST: (req: Request) => handleAuthPoll(req) },
+      "/api/auth/authorize": { POST: (req: Request) => handleAuthAuthorize(req) },
+      "/api/auth/callback": { GET: (req: Request) => handleAuthCallback(req) },
+      "/api/auth/import": { POST: (req: Request) => handleAuthImport(req) },
+      "/api/accounts/:id/toggle": { POST: (req: BunRequest) => handleAccountToggle(req.params.id!) },
+      "/api/accounts/:id": { DELETE: (req: BunRequest) => handleAccountRemove(req.params.id!) },
+      "/api/setup-status": { GET: () => handleSetupStatus() },
+      "/api/setup-done": { POST: () => handleSetupDone() },
       "/api/client-keys": {
         GET: () => handleListClientKeys(),
         POST: (req: Request) => handleCreateClientKey(req),
-        OPTIONS: preflight,
       },
       "/api/client-keys/:key": {
         PATCH: (req: BunRequest) => handleUpdateClientKey(req, req.params.key!),
         DELETE: (req: BunRequest) => handleDeleteClientKey(req.params.key!),
-        OPTIONS: preflight,
       },
       "/api/config": {
         GET: () => handleGetConfig(),
         POST: (req: Request) => handleSetConfig(req),
-        OPTIONS: preflight,
       },
-      "/api/unlock": { POST: () => handleUnlockAll(), OPTIONS: preflight },
-      "/api/providers": { GET: () => handleGetProviders(), OPTIONS: preflight },
-      "/api/providers/custom": { POST: (req: Request) => handleCreateCustomProvider(req), OPTIONS: preflight },
-      "/api/providers/:id/connections": { GET: (req: BunRequest) => handleGetProviderConnections(req.params.id!), OPTIONS: preflight },
-      "/api/providers/:id/models": { GET: (req: BunRequest) => handleGetProviderModels(req.params.id!), OPTIONS: preflight },
-      "/api/providers/:id/refresh-models": { POST: (req: BunRequest) => handleRefreshProviderModels(req.params.id!), OPTIONS: preflight },
-      "/api/providers/refresh-models": { POST: (req: Request) => handleRefreshProviderModelsBatch(req), OPTIONS: preflight },
-      "/api/providers/:id/config": { POST: (req: BunRequest) => handleProviderConfig(req.params.id!, req), OPTIONS: preflight },
+      "/api/unlock": { POST: () => handleUnlockAll() },
+      "/api/providers": { GET: () => handleGetProviders() },
+      "/api/providers/custom": { POST: (req: Request) => handleCreateCustomProvider(req) },
+      "/api/providers/:id/connections": { GET: (req: BunRequest) => handleGetProviderConnections(req.params.id!) },
+      "/api/providers/:id/models": { GET: (req: BunRequest) => handleGetProviderModels(req.params.id!) },
+      "/api/providers/:id/refresh-models": { POST: (req: BunRequest) => handleRefreshProviderModels(req.params.id!) },
+      "/api/providers/refresh-models": { POST: (req: Request) => handleRefreshProviderModelsBatch(req) },
+      "/api/providers/:id/config": { POST: (req: BunRequest) => handleProviderConfig(req.params.id!, req) },
       "/api/providers/:id/wake": {
         POST: (req: BunRequest) => {
           const id = req.params.id!;
@@ -165,22 +162,19 @@ export function startServer(port: number) {
           const providerPort = getProviderPort(id);
           return jsonResponse({ ok: true, provider: id, port: providerPort });
         },
-        OPTIONS: preflight,
       },
-      "/api/connections": { POST: (req: Request) => handleAddConnection(req), OPTIONS: preflight },
+      "/api/connections": { POST: (req: Request) => handleAddConnection(req) },
       "/api/proxy-pools": {
         GET: () => handleListProxyPools(),
         POST: (req: Request) => handleCreateProxyPool(req),
-        OPTIONS: preflight,
       },
       "/api/proxy-pools/:id": {
         PATCH: (req: BunRequest) => handleUpdateProxyPool(req.params.id!, req),
         DELETE: (req: BunRequest) => handleDeleteProxyPool(req.params.id!),
-        OPTIONS: preflight,
       },
-      "/api/proxy-pools/:id/test": { POST: (req: BunRequest) => handleTestProxyPool(req.params.id!), OPTIONS: preflight },
-      "/api/connections/:id": { PATCH: (req: BunRequest) => handleUpdateConnection(req.params.id!, req), OPTIONS: preflight },
-      "/api/proxy/stop": { POST: () => handleProxyStop(), OPTIONS: preflight },
+      "/api/proxy-pools/:id/test": { POST: (req: BunRequest) => handleTestProxyPool(req.params.id!) },
+      "/api/connections/:id": { PATCH: (req: BunRequest) => handleUpdateConnection(req.params.id!, req) },
+      "/api/proxy/stop": { POST: () => handleProxyStop() },
 
       // Proxy API.
       "/health": {
@@ -192,18 +186,15 @@ export function startServer(port: number) {
       },
       "/v1/models": {
         GET: async (req: Request) => jsonResponse({ object: "list", data: await fetchModels(req) }),
-        OPTIONS: preflight,
       },
       "/api/version": {
         GET: async () => {
           const remote = await fetchAndCacheVersion();
           return jsonResponse({ current: CURRENT_VERSION, latest: remote ?? CURRENT_VERSION });
         },
-        OPTIONS: preflight,
       },
       "/v1/chat/completions": {
         POST: (req: Request) => handleChatCompletions(req),
-        OPTIONS: preflight,
       },
     },
     fetch(req) {
@@ -234,11 +225,9 @@ export function startProviderServer(provider: string, port: number) {
             .map((model) => ({ id: model.id, object: "model", created: 1720000000, owned_by: provider }));
           return jsonResponse({ object: "list", data });
         },
-        OPTIONS: preflight,
       },
       "/v1/chat/completions": {
         POST: (req: Request) => handleChatCompletions(req, provider),
-        OPTIONS: preflight,
       },
     },
     fetch(req) {
@@ -282,3 +271,4 @@ export function startAllServers(mainPort: number) {
   }
   return { main, providerServers };
 }
+
