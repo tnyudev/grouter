@@ -1,0 +1,134 @@
+import { describe, test, expect } from "bun:test";
+import {
+  openaiToCodexResponses,
+  translateCodexNonStream,
+  newCodexStreamState,
+  codexChunkToOpenAI,
+} from "../src/proxy/codex-translator.ts";
+
+describe("openaiToCodexResponses", () => {
+  test("maps OpenAI chat payload to Responses format with system instructions and tools", () => {
+    const mapped = openaiToCodexResponses(
+      {
+        model: "gpt-5.4",
+        messages: [
+          { role: "system", content: "You are concise." },
+          { role: "user", content: "Hello" },
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "search_docs",
+              description: "Search docs",
+              parameters: { type: "object", properties: { q: { type: "string" } } },
+            },
+          },
+        ],
+      },
+      true,
+    );
+
+    expect(mapped.model).toBe("gpt-5.4");
+    expect(mapped.store).toBe(false);
+    expect(mapped.stream).toBe(true);
+    expect(mapped.instructions).toBe("You are concise.");
+    expect(Array.isArray(mapped.input)).toBe(true);
+    expect((mapped.input as unknown[]).length).toBeGreaterThan(0);
+    expect(mapped.tools).toEqual([
+      {
+        type: "function",
+        name: "search_docs",
+        description: "Search docs",
+        parameters: { type: "object", properties: { q: { type: "string" } } },
+      },
+    ]);
+    expect(mapped.tool_choice).toBe("auto");
+    expect(mapped.parallel_tool_calls).toBe(true);
+  });
+});
+
+describe("translateCodexNonStream", () => {
+  test("maps plain text and usage to OpenAI chat completion format", () => {
+    const out = translateCodexNonStream({
+      response: {
+        id: "resp_1",
+        model: "gpt-5.4",
+        status: "completed",
+        usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+        output: [
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Hello from Codex" }],
+          },
+        ],
+      },
+    });
+
+    expect(out.object).toBe("chat.completion");
+    expect((out.choices as Array<Record<string, unknown>>)[0]?.message).toEqual({
+      role: "assistant",
+      content: "Hello from Codex",
+    });
+    expect(out.usage).toEqual({
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      total_tokens: 15,
+    });
+  });
+
+  test("emits tool_calls finish reason when function calls exist", () => {
+    const out = translateCodexNonStream({
+      response: {
+        id: "resp_2",
+        model: "gpt-5.4",
+        status: "incomplete",
+        incomplete_details: { reason: "max_output_tokens" },
+        output: [
+          {
+            type: "function_call",
+            call_id: "call_1",
+            name: "search_docs",
+            arguments: "{\"q\":\"router\"}",
+          },
+        ],
+      },
+    });
+
+    const choice = (out.choices as Array<Record<string, unknown>>)[0]!;
+    expect(choice.finish_reason).toBe("tool_calls");
+    const message = choice.message as Record<string, unknown>;
+    expect(Array.isArray(message.tool_calls)).toBe(true);
+    expect((message.tool_calls as Array<Record<string, unknown>>)[0]?.id).toBe("call_1");
+  });
+});
+
+describe("codexChunkToOpenAI", () => {
+  test("translates created/text/completed SSE flow into OpenAI chunks", () => {
+    const state = newCodexStreamState();
+
+    expect(
+      codexChunkToOpenAI(
+        'data: {"type":"response.created","response":{"id":"resp_3","model":"gpt-5.4"}}',
+        state,
+      ),
+    ).toEqual([]);
+
+    const textChunks = codexChunkToOpenAI(
+      'data: {"type":"response.output_text.delta","delta":"hello"}',
+      state,
+    );
+    expect(textChunks.length).toBe(2);
+    expect(textChunks[0]).toContain('"role":"assistant"');
+    expect(textChunks[1]).toContain('"content":"hello"');
+
+    const doneChunks = codexChunkToOpenAI(
+      'data: {"type":"response.completed","response":{"id":"resp_3","model":"gpt-5.4","status":"completed","usage":{"input_tokens":3,"output_tokens":2},"output":[]}}',
+      state,
+    );
+    expect(doneChunks[0]).toContain('"finish_reason":"stop"');
+    expect(doneChunks[0]).toContain('"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}');
+    expect(doneChunks[1]).toBe("data: [DONE]\n\n");
+  });
+});
+

@@ -22,6 +22,7 @@ Run Claude Code, GitHub Copilot, Gemini CLI, Kiro, Kimi, KiloCode, Cursor and 15
 
 - [Install](#install)
 - [Quick start](#quick-start)
+- [Quality updates](#quality-updates)
 - [Providers](#providers)
 - [Commands](#commands)
 - [Per-provider ports](#per-provider-ports)
@@ -84,6 +85,17 @@ const res = await client.chat.completions.create({
   messages: [{ role: 'user', content: 'Hello!' }],
 })
 ```
+
+---
+
+## Quality updates
+
+Recent hardening updates shipped on **April 21, 2026**:
+
+- Added unit coverage for `rotator`, `upstream`, `claude-translator`, `codex-translator`, and `gemini-translator`.
+- Fixed round-robin sticky selection edge case in `src/rotator/index.ts` (selection now stays correct when sticky limit is reached).
+- Added explicit field validation and safe patch typing in account update flow (`src/db/accounts.ts`) to prevent invalid patch keys.
+- Kept CI-style validation for this branch: `bun test` and `bun run build` passing.
 
 ---
 

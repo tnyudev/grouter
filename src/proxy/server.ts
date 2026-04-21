@@ -52,7 +52,7 @@ import {
 import { getProxyPoolById } from "../db/pools.ts";
 import { getProviderPort, listProviderPorts } from "../db/ports.ts";
 
-// â”€â”€ HTML pages + static assets â€” embedded at build time â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// HTML pages and static assets embedded at build time.
 // @ts-ignore
 import WIZARD_HTML    from "../web/wizard.html"       with { type: "text" };
 // @ts-ignore
@@ -61,7 +61,7 @@ import DASHBOARD_HTML from "../web/dashboard.html"    with { type: "text" };
 import ANIMATION_JS   from "../public/animation.js"  with { type: "text" };
 import { serveLogo } from "../web/logos.ts";
 
-// Bun route params â€” not in the standard Request type
+// Bun route params are not in the standard Request type.
 interface BunRequest extends Request {
   params: Record<string, string>;
 }
@@ -72,7 +72,7 @@ function serveDashboard(): Response { return new Response(DASHBOARD_HTML as unkn
 const MAX_RETRIES = 3;
 const SERVER_IDLE_TIMEOUT_SECONDS = 240;
 
-// â”€â”€ Model cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Model cache.
 
 let modelsCache: { data: unknown[]; at: number } | null = null;
 const MODELS_TTL = 10 * 60 * 1000;
@@ -157,7 +157,7 @@ async function fetchModels(req?: Request) {
   return baseData;
 }
 
-// â”€â”€ Logger â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Logger.
 
 function logReq(method: string, path: string, status: number, ms: number,
   meta?: { model?: string | null; account?: string; rotated?: number; tokens?: number }) {
@@ -166,13 +166,13 @@ function logReq(method: string, path: string, status: number, ms: number,
   const lat = ms < 1000 ? chalk.gray(`${ms}ms`) : chalk.yellow(`${(ms / 1000).toFixed(1)}s`);
   let extras = "";
   if (meta?.model) extras += chalk.magenta(` ${meta.model}`);
-  if (meta?.account) extras += chalk.gray(` â†’ ${meta.account}`);
-  if (meta?.rotated && meta.rotated > 0) extras += chalk.yellow(` â†»Ã—${meta.rotated}`);
+  if (meta?.account) extras += chalk.gray(` -> ${meta.account}`);
+  if (meta?.rotated && meta.rotated > 0) extras += chalk.yellow(` x${meta.rotated}`);
   if (meta?.tokens) extras += chalk.gray(` [${meta.tokens}t]`);
   console.log(`  ${time} ${chalk.bold(method.padEnd(4))} ${path}${extras} ${sc(String(status))} ${lat}`);
 }
 
-// â”€â”€ Provider/model parsing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Provider/model parsing.
 
 function parseProviderModel(raw: string | null, pinnedProvider?: string): { provider: string | null; model: string } {
   if (pinnedProvider) {
@@ -195,7 +195,7 @@ function parseProviderModel(raw: string | null, pinnedProvider?: string): { prov
   return { provider: raw.slice(0, slash), model: raw.slice(slash + 1) };
 }
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Helpers.
 
 function corsHeaders(): Record<string, string> {
   return {
@@ -229,7 +229,7 @@ function extractUsageFromSSE(tail: string): TokenUsage | null {
   return { prompt, completion, total };
 }
 
-// â”€â”€ Server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Server.
 
 export function startServer(port: number) {
   return Bun.serve({
@@ -237,7 +237,7 @@ export function startServer(port: number) {
     idleTimeout: SERVER_IDLE_TIMEOUT_SECONDS,
 
     routes: {
-      // â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // Dashboard.
       "/": {
         GET: () => {
           if (getSetting("setup_done") === "1") {
@@ -254,8 +254,7 @@ export function startServer(port: number) {
         GET: (req: BunRequest) => serveLogo(req.params.file!),
       },
       "/dashboard": { GET: () => serveDashboard() },
-
-      // â”€â”€ Dashboard API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // Dashboard API.
       "/api/status": {
         GET: () => handleStatus(),
         OPTIONS: () => new Response(null, { status: 204, headers: corsHeaders() }),
@@ -378,8 +377,7 @@ export function startServer(port: number) {
         POST:    () => handleProxyStop(),
         OPTIONS: () => new Response(null, { status: 204, headers: corsHeaders() }),
       },
-
-      // â”€â”€ Proxy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // Proxy API.
       "/health": {
         GET: async () => {
           const accounts = listAccounts();
@@ -450,12 +448,12 @@ export function startProviderServer(provider: string, port: number) {
   });
 }
 
-// Track which providers already have a running dedicated server
+// Track which providers already have a running dedicated server.
 const _runningProviderServers = new Set<string>();
 
 /**
  * Start a provider server only if one isn't already running.
- * Safe to call at any time â€” e.g. right after a new connection is added.
+ * Safe to call at any time, e.g. right after a new connection is added.
  */
 export function ensureProviderServer(provider: string): void {
   if (_runningProviderServers.has(provider)) return;
@@ -465,7 +463,7 @@ export function ensureProviderServer(provider: string): void {
     startProviderServer(provider, port);
     _runningProviderServers.add(provider);
   } catch (err) {
-    console.error(`  ${chalk.yellow("âš ")} Failed to bind ${provider} on :${port} â€” ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`  ${chalk.yellow("WARN")} Failed to bind ${provider} on :${port} - ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -479,7 +477,7 @@ export function startAllServers(mainPort: number) {
       _runningProviderServers.add(row.provider);
       providerServers.push({ provider: row.provider, port: row.port });
     } catch (err) {
-      console.error(`  ${chalk.yellow("âš ")} Failed to bind ${row.provider} on :${row.port} â€” ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`  ${chalk.yellow("WARN")} Failed to bind ${row.provider} on :${row.port} - ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   return { main, providerServers };
@@ -521,8 +519,7 @@ async function handleChatCompletions(req: Request, pinnedProvider?: string): Pro
   const stream = body.stream === true;
   const excludeIds = new Set<string>();
   let rotations = 0;
-
-  // Normalise model in body â€” strip provider prefix before sending upstream
+  // Normalize model in body: strip provider prefix before sending upstream.
   const normalizedBody = { ...body, model };
 
   let lastFetchError: { provider: string; url: string; message: string } | null = null;
@@ -550,8 +547,7 @@ async function handleChatCompletions(req: Request, pinnedProvider?: string): Pro
     }
 
     const label = selected.email?.split("@")[0] ?? selected.display_name ?? selected.id.slice(0, 8);
-
-    // â”€â”€ Build upstream request via per-provider dispatcher â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Build upstream request via per-provider dispatcher.
     const account = selected.auth_type === "oauth"
       ? await checkAndRefreshAccount(selected)
       : selected;
@@ -571,8 +567,7 @@ async function handleChatCompletions(req: Request, pinnedProvider?: string): Pro
     const upstreamUrl     = dispatch.req.url;
     const upstreamHeaders = dispatch.req.headers;
     const upstreamBody    = dispatch.req.body;
-
-    // Apply proxy pool if assigned to this connection
+    // Apply proxy pool if assigned to this connection.
     const proxyPool = selected.proxy_pool_id ? getProxyPoolById(selected.proxy_pool_id) : null;
     const fetchOptions: Record<string, unknown> = {
       method: "POST",
@@ -580,7 +575,7 @@ async function handleChatCompletions(req: Request, pinnedProvider?: string): Pro
       body: JSON.stringify(upstreamBody),
     };
     if (proxyPool?.proxy_url) {
-      // @ts-ignore â€” Bun-specific proxy option
+      // @ts-ignore Bun-specific proxy option
       fetchOptions.proxy = proxyPool.proxy_url;
     }
 
@@ -590,7 +585,7 @@ async function handleChatCompletions(req: Request, pinnedProvider?: string): Pro
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       lastFetchError = { provider, url: upstreamUrl, message: msg };
-      console.log(`  ${chalk.red("âœ–")} fetch failed â†’ ${chalk.cyan(label)} ${chalk.gray(upstreamUrl)} ${chalk.red(msg)}`);
+      console.log(`  ${chalk.red("FAIL")} fetch failed -> ${chalk.cyan(label)} ${chalk.gray(upstreamUrl)} ${chalk.red(msg)}`);
       excludeIds.add(selected.id); rotations++;
       markAccountUnavailable(selected.id, 503, msg, model || null);
       continue;
@@ -600,7 +595,7 @@ async function handleChatCompletions(req: Request, pinnedProvider?: string): Pro
       const errText = await upstreamResp.text();
       const { shouldFallback } = markAccountUnavailable(selected.id, upstreamResp.status, errText, model || null);
       if (shouldFallback && attempt < MAX_RETRIES - 1) {
-        console.log(`  ${chalk.yellow("â†»")} rotating away from ${chalk.cyan(label)} (${upstreamResp.status})`);
+        console.log(`  ${chalk.yellow("RETRY")} rotating away from ${chalk.cyan(label)} (${upstreamResp.status})`);
         excludeIds.add(selected.id); rotations++;
         continue;
       }
@@ -668,8 +663,7 @@ async function handleChatCompletions(req: Request, pinnedProvider?: string): Pro
     }
 
     let data = (await upstreamResp.json()) as Record<string, unknown>;
-
-    // Translate non-stream responses â†’ OpenAI format
+    // Translate non-stream responses to OpenAI format.
     if (dispatch.format === "claude") data = translateClaudeNonStream(data);
     else if (dispatch.format === "gemini") data = translateGeminiNonStream(data);
     else if (dispatch.format === "codex") data = translateCodexNonStream(data);
