@@ -1,10 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Project
 
-`grouter` (package `grouter-auth`) is a CLI + local OpenAI-compatible proxy that aggregates OAuth and API-key accounts across 15+ AI providers (Qwen, GitHub Copilot, Claude, Codex, Gemini, Kimi, Kiro, KiloCode, GitLab Duo, Cursor, OpenRouter, Groq, DeepSeek, etc.) behind a single local endpoint. Built as a Bun single-file binary — no external services, state lives in `~/.grouter/grouter.db` (SQLite).
+`grouter` (package `grouter-auth`) is a CLI + local OpenAI-compatible proxy that aggregates OAuth and API-key accounts across 15+ AI providers (Qwen, GitHub Copilot, Codex, Codex, Gemini, Kimi, Kiro, KiloCode, GitLab Duo, Cursor, OpenRouter, Groq, DeepSeek, etc.) behind a single local endpoint. Built as a Bun single-file binary — no external services, state lives in `~/.grouter/grouter.db` (SQLite).
 
 ## Commands
 
@@ -43,7 +43,7 @@ Request flow for `/v1/chat/completions`:
 2. `checkAndRefreshAccount()` in `src/token/refresh.ts` refreshes OAuth tokens within `TOKEN_EXPIRY_BUFFER_MS`.
 3. `buildUpstream()` in `src/proxy/upstream.ts` constructs the upstream URL + headers per provider.
 4. On upstream error, `checkFallbackError()` + `markAccountUnavailable()` applies cooldowns from `src/constants.ts` (unauthorized → 15min, payment → 1hr, transient → 5s, rate-limit → exponential backoff up to level 15).
-5. Claude-style upstream formats are translated to OpenAI chat.completions SSE/non-stream via `claude-translator.ts`.
+5. Codex-style upstream formats are translated to OpenAI chat.completions SSE/non-stream via `Codex-translator.ts`.
 
 ### Provider registry and auth
 `src/providers/registry.ts` is the source of truth for provider metadata (models, colors, logos, auth type, deprecation flags). Every provider in the `PROVIDERS` record must have a matching **OAuth adapter** in `src/auth/providers/<id>.ts` (exported via `src/auth/providers/index.ts`) implementing one of: `device_code`, `auth_code` (+ optional PKCE), or `import_token`. `src/auth/orchestrator.ts` owns the session state machine — pending sessions are held in-memory with a 10-minute TTL.

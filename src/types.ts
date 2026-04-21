@@ -28,8 +28,6 @@ export interface Connection {
   updated_at: string;
 }
 
-// Backward-compat alias — existing code that imports QwenAccount keeps working
-export type QwenAccount = Connection;
 
 export interface ModelLock {
   id: number;
@@ -43,22 +41,7 @@ export interface Setting {
   value: string;
 }
 
-export interface DeviceCodeResponse {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  verification_uri_complete: string;
-  expires_in: number;
-  interval: number;
-}
 
-export interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  resource_url?: string;
-  id_token?: string;
-}
 
 export interface RefreshedCredentials {
   accessToken: string;
@@ -75,6 +58,16 @@ export interface RateLimitedResult {
 
 export function isRateLimitedResult(v: unknown): v is RateLimitedResult {
   return typeof v === "object" && v !== null && "allRateLimited" in v;
+}
+
+export interface TemporarilyUnavailableResult {
+  allTemporarilyUnavailable: true;
+  retryAfter: string;
+  retryAfterHuman: string;
+}
+
+export function isTemporarilyUnavailableResult(v: unknown): v is TemporarilyUnavailableResult {
+  return typeof v === "object" && v !== null && "allTemporarilyUnavailable" in v;
 }
 
 export interface FallbackDecision {
