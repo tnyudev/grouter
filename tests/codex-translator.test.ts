@@ -43,7 +43,7 @@ describe("openaiToCodexResponses", () => {
         parameters: { type: "object", properties: { q: { type: "string" } } },
       },
     ]);
-    expect(mapped.tool_choice).toBe("auto");
+    expect(mapped.tool_choice).toBe("required");
     expect(mapped.parallel_tool_calls).toBe(true);
   });
 
@@ -110,6 +110,30 @@ describe("openaiToCodexResponses", () => {
       type: "function",
       name: "write_file",
     });
+  });
+
+  test("honors environment override for default tool_choice", () => {
+    const prev = process.env.GROUTER_CODEX_DEFAULT_TOOL_CHOICE;
+    process.env.GROUTER_CODEX_DEFAULT_TOOL_CHOICE = "auto";
+    try {
+      const mapped = openaiToCodexResponses(
+        {
+          model: "gpt-5.4",
+          messages: [{ role: "user", content: "Check this file" }],
+          tools: [
+            {
+              type: "function",
+              function: { name: "read_file", parameters: { type: "object", properties: {} } },
+            },
+          ],
+        },
+        false,
+      );
+      expect(mapped.tool_choice).toBe("auto");
+    } finally {
+      if (prev === undefined) delete process.env.GROUTER_CODEX_DEFAULT_TOOL_CHOICE;
+      else process.env.GROUTER_CODEX_DEFAULT_TOOL_CHOICE = prev;
+    }
   });
 });
 

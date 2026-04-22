@@ -60,6 +60,12 @@ function mapToolChoice(toolChoice: unknown): unknown {
   return { type: "function", name: fn.name };
 }
 
+function defaultCodexToolChoice(): "required" | "auto" | "none" {
+  const raw = (process.env.GROUTER_CODEX_DEFAULT_TOOL_CHOICE ?? "required").trim().toLowerCase();
+  if (raw === "auto" || raw === "none" || raw === "required") return raw;
+  return "required";
+}
+
 function mapInputMessages(messages: unknown): unknown[] {
   if (!Array.isArray(messages)) return [];
   const input: unknown[] = [];
@@ -133,7 +139,7 @@ export function openaiToCodexResponses(body: Record<string, unknown>, stream: bo
   if (instructionParts.length) out.instructions = instructionParts.join("\n");
   if (mappedTools) {
     out.tools = mappedTools;
-    out.tool_choice = mappedToolChoice ?? "auto";
+    out.tool_choice = mappedToolChoice ?? defaultCodexToolChoice();
     out.parallel_tool_calls = parallelToolCalls;
   }
   if (typeof body.temperature === "number") out.temperature = body.temperature;
