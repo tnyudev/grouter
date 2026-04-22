@@ -50,6 +50,16 @@ function mapToolDefs(tools: unknown): unknown[] | undefined {
   return mapped.length ? mapped : undefined;
 }
 
+function mapToolChoice(toolChoice: unknown): unknown {
+  if (toolChoice === "auto" || toolChoice === "required" || toolChoice === "none") return toolChoice;
+  const rec = toRecord(toolChoice);
+  if (!rec) return undefined;
+  if (rec.type !== "function") return undefined;
+  const fn = toRecord(rec.function);
+  if (!fn || typeof fn.name !== "string" || !fn.name) return undefined;
+  return { type: "function", name: fn.name };
+}
+
 function mapInputMessages(messages: unknown): unknown[] {
   if (!Array.isArray(messages)) return [];
   const input: unknown[] = [];
@@ -107,6 +117,11 @@ export function openaiToCodexResponses(body: Record<string, unknown>, stream: bo
 
   const mappedInput = mapInputMessages(messages);
   const mappedTools = mapToolDefs(body.tools);
+  const mappedToolChoice = mapToolChoice(body.tool_choice);
+  const parallelToolCalls =
+    typeof body.parallel_tool_calls === "boolean"
+      ? body.parallel_tool_calls
+      : true;
 
   const out: Record<string, unknown> = {
     model: typeof body.model === "string" ? body.model : "",
@@ -118,8 +133,8 @@ export function openaiToCodexResponses(body: Record<string, unknown>, stream: bo
   if (systemParts.length) out.instructions = systemParts.join("\n");
   if (mappedTools) {
     out.tools = mappedTools;
-    out.tool_choice = "auto";
-    out.parallel_tool_calls = true;
+    out.tool_choice = mappedToolChoice ?? "auto";
+    out.parallel_tool_calls = parallelToolCalls;
   }
   if (typeof body.temperature === "number") out.temperature = body.temperature;
   // chatgpt.com/backend-api/codex/responses can reject token-cap fields

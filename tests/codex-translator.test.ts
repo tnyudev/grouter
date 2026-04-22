@@ -46,6 +46,52 @@ describe("openaiToCodexResponses", () => {
     expect(mapped.tool_choice).toBe("auto");
     expect(mapped.parallel_tool_calls).toBe(true);
   });
+
+  test("preserves explicit tool_choice and parallel_tool_calls from OpenAI payload", () => {
+    const mapped = openaiToCodexResponses(
+      {
+        model: "gpt-5.4",
+        messages: [{ role: "user", content: "Create file" }],
+        tools: [
+          {
+            type: "function",
+            function: { name: "write_file", parameters: { type: "object", properties: {} } },
+          },
+        ],
+        tool_choice: "required",
+        parallel_tool_calls: false,
+      },
+      true,
+    );
+
+    expect(mapped.tool_choice).toBe("required");
+    expect(mapped.parallel_tool_calls).toBe(false);
+  });
+
+  test("maps function-specific tool_choice to Responses shape", () => {
+    const mapped = openaiToCodexResponses(
+      {
+        model: "gpt-5.4",
+        messages: [{ role: "user", content: "Use write_file" }],
+        tools: [
+          {
+            type: "function",
+            function: { name: "write_file", parameters: { type: "object", properties: {} } },
+          },
+        ],
+        tool_choice: {
+          type: "function",
+          function: { name: "write_file" },
+        },
+      },
+      false,
+    );
+
+    expect(mapped.tool_choice).toEqual({
+      type: "function",
+      name: "write_file",
+    });
+  });
 });
 
 describe("translateCodexNonStream", () => {
@@ -131,4 +177,3 @@ describe("codexChunkToOpenAI", () => {
     expect(doneChunks[1]).toBe("data: [DONE]\n\n");
   });
 });
-
