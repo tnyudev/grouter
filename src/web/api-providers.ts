@@ -26,7 +26,7 @@ import {
   saveCustomProvider,
   type Provider,
 } from "../providers/registry.ts";
-import { json } from "./api-http.ts";
+import { errorResponse, handleApiError, json, readJson } from "./api-http.ts";
 
 function maskApiKey(key: string): string {
   if (!key) return "";
@@ -75,7 +75,7 @@ export function handleGetProviders(): Response {
 
 export function handleGetProviderConnections(id: string): Response {
   const provider = PROVIDERS[id];
-  if (!provider) return json({ error: `Unknown provider: ${id}` }, 404);
+  if (!provider) return errorResponse(404, `Unknown provider: ${id}`);
   const connections = listConnectionsByProvider(id).map((connection) => ({
     id: connection.id,
     display_name: connection.display_name,
@@ -96,9 +96,9 @@ export function handleGetProviderConnections(id: string): Response {
 
 export async function handleCreateCustomProvider(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as { name?: string; url?: string };
-    if (!body.name) return json({ error: "name is required" }, 400);
-    if (!body.url) return json({ error: "url is required" }, 400);
+    const body = await readJson<{ name?: string; url?: string }>(req);
+    if (!body.name) return errorResponse(400, "name is required");
+    if (!body.url) return errorResponse(400, "url is required");
 
     const safeId = "custom_" + crypto.randomUUID().slice(0, 8) + "_" + body.name.toLowerCase().replace(/[^a-z0-9]/g, "");
     const provider: Provider = {
@@ -115,21 +115,21 @@ export async function handleCreateCustomProvider(req: Request): Promise<Response
     saveCustomProvider(provider);
     return json(provider);
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
 export async function handleAddConnection(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as { provider?: string; api_key?: string; display_name?: string };
-    if (!body.provider) return json({ error: "provider is required" }, 400);
-    if (!body.api_key) return json({ error: "api_key is required" }, 400);
+    const body = await readJson<{ provider?: string; api_key?: string; display_name?: string }>(req);
+    if (!body.provider) return errorResponse(400, "provider is required");
+    if (!body.api_key) return errorResponse(400, "api_key is required");
 
     const provider = PROVIDERS[body.provider];
-    if (!provider) return json({ error: `Unknown provider: ${body.provider}` }, 400);
+    if (!provider) return errorResponse(400, `Unknown provider: ${body.provider}`);
     const addLock = getProviderLock(provider);
-    if (addLock) return json({ error: addLock.reason }, addLock.kind === "deprecated" ? 410 : 503);
-    if (provider.authType !== "apikey") return json({ error: "Use OAuth flow for this provider" }, 400);
+    if (addLock) return errorResponse(addLock.kind === "deprecated" ? 410 : 503, addLock.reason);
+    if (provider.authType !== "apikey") return errorResponse(400, "Use OAuth flow for this provider");
 
     const connection = addApiKeyConnection({
       provider: body.provider,
@@ -143,13 +143,13 @@ export async function handleAddConnection(req: Request): Promise<Response> {
 
     return json({ ok: true, connection, port });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
 export function handleGetProviderModels(id: string): Response {
   const provider = PROVIDERS[id];
-  if (!provider) return json({ error: `Unknown provider: ${id}` }, 404);
+  if (!provider) return errorResponse(404, `Unknown provider: ${id}`);
   const models = getModelsForProvider(id);
   const freeOnly = getSetting(`provider_free_only_${id}`) === "true";
   return json({ provider: id, models, free_only: freeOnly });
@@ -157,34 +157,34 @@ export function handleGetProviderModels(id: string): Response {
 
 export async function handleProviderConfig(id: string, req: Request): Promise<Response> {
   const provider = PROVIDERS[id];
-  if (!provider) return json({ error: `Unknown provider: ${id}` }, 404);
+  if (!provider) return errorResponse(404, `Unknown provider: ${id}`);
   try {
-    const body = (await req.json()) as { free_only?: boolean };
+    const body = await readJson<{ free_only?: boolean }>(req);
     if (typeof body.free_only === "boolean") {
       setSetting(`provider_free_only_${id}`, body.free_only ? "true" : "false");
       clearModelsCache();
     }
     return json({ ok: true, free_only: body.free_only });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
 export async function handleRefreshProviderModels(id: string): Promise<Response> {
   const provider = PROVIDERS[id];
-  if (!provider) return json({ error: `Unknown provider: ${id}` }, 404);
+  if (!provider) return errorResponse(404, `Unknown provider: ${id}`);
   try {
     const result = await fetchAndSaveProviderModels(id);
     clearModelsCache();
     return json({ provider: id, models: result.models, source: result.source });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
 export async function handleRefreshProviderModelsBatch(req: Request): Promise<Response> {
   try {
-    const body = (await req.json().catch(() => ({}))) as { providers?: string[] };
+    const body = await readJson<{ providers?: string[] }>(req, {});
     const requested = Array.isArray(body.providers) ? body.providers : null;
     const targets = (requested && requested.length > 0 ? requested : Object.keys(PROVIDERS))
       .map((providerId) => providerId.trim().toLowerCase())
@@ -215,7 +215,7 @@ export async function handleRefreshProviderModelsBatch(req: Request): Promise<Re
       results,
     });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
@@ -229,21 +229,21 @@ export function handleListProxyPools(): Response {
 
 export async function handleCreateProxyPool(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as { name?: string; proxy_url?: string; no_proxy?: string };
-    if (!body.name) return json({ error: "name is required" }, 400);
-    if (!body.proxy_url) return json({ error: "proxy_url is required" }, 400);
+    const body = await readJson<{ name?: string; proxy_url?: string; no_proxy?: string }>(req);
+    if (!body.name) return errorResponse(400, "name is required");
+    if (!body.proxy_url) return errorResponse(400, "proxy_url is required");
     const pool = createProxyPool({ name: body.name, proxy_url: body.proxy_url, no_proxy: body.no_proxy ?? null });
     return json({ ok: true, pool });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
 export function handleDeleteProxyPool(id: string): Response {
   const pool = getProxyPoolById(id);
-  if (!pool) return json({ error: "Pool not found" }, 404);
+  if (!pool) return errorResponse(404, "Pool not found");
   const bound = getConnectionCountForPool(id);
-  if (bound > 0) return json({ error: `Cannot delete - ${bound} connection(s) still use this pool` }, 409);
+  if (bound > 0) return errorResponse(409, `Cannot delete - ${bound} connection(s) still use this pool`);
   deleteProxyPool(id);
   return json({ ok: true });
 }
@@ -251,56 +251,56 @@ export function handleDeleteProxyPool(id: string): Response {
 export async function handleUpdateProxyPool(id: string, req: Request): Promise<Response> {
   try {
     const pool = getProxyPoolById(id);
-    if (!pool) return json({ error: "Pool not found" }, 404);
+    if (!pool) return errorResponse(404, "Pool not found");
 
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const body = await readJson<Record<string, unknown>>(req, {});
     const allowed = new Set(["name", "proxy_url", "no_proxy", "is_active"]);
     const unknownFields = Object.keys(body).filter((key) => !allowed.has(key));
     if (unknownFields.length > 0) {
-      return json({ error: `Unknown field(s): ${unknownFields.join(", ")}` }, 400);
+      return errorResponse(400, `Unknown field(s): ${unknownFields.join(", ")}`);
     }
 
     const patch: ProxyPoolPatch = {};
     if ("name" in body) {
       if (typeof body.name !== "string" || !body.name.trim()) {
-        return json({ error: "name must be a non-empty string" }, 400);
+        return errorResponse(400, "name must be a non-empty string");
       }
       patch.name = body.name.trim();
     }
     if ("proxy_url" in body) {
       if (typeof body.proxy_url !== "string" || !body.proxy_url.trim()) {
-        return json({ error: "proxy_url must be a non-empty string" }, 400);
+        return errorResponse(400, "proxy_url must be a non-empty string");
       }
       patch.proxy_url = body.proxy_url.trim();
     }
     if ("no_proxy" in body) {
       if (body.no_proxy !== null && typeof body.no_proxy !== "string") {
-        return json({ error: "no_proxy must be a string or null" }, 400);
+        return errorResponse(400, "no_proxy must be a string or null");
       }
       patch.no_proxy = body.no_proxy === null ? null : body.no_proxy.trim();
     }
     if ("is_active" in body) {
       const value = Number(body.is_active);
       if (!Number.isInteger(value) || (value !== 0 && value !== 1)) {
-        return json({ error: "is_active must be 0 or 1" }, 400);
+        return errorResponse(400, "is_active must be 0 or 1");
       }
       patch.is_active = value;
     }
 
     if (Object.keys(patch).length === 0) {
-      return json({ error: "No valid fields provided for update" }, 400);
+      return errorResponse(400, "No valid fields provided for update");
     }
 
     updateProxyPool(id, patch);
     return json({ ok: true, pool: getProxyPoolById(id) });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
 export async function handleTestProxyPool(id: string): Promise<Response> {
   const pool = getProxyPoolById(id);
-  if (!pool) return json({ error: "Pool not found" }, 404);
+  if (!pool) return errorResponse(404, "Pool not found");
   const result = await testProxyPool(pool);
   return json(result);
 }

@@ -7,7 +7,7 @@ import { getUsageByAccount, getUsageByModel, getUsageTotals } from "../db/usage.
 import { isRunning, readPid, removePid } from "../daemon/index.ts";
 import { PROVIDERS } from "../providers/registry.ts";
 import { clearModelLocks, getActiveModelLocks } from "../rotator/lock.ts";
-import { json } from "./api-http.ts";
+import { errorResponse, handleApiError, json, readJson } from "./api-http.ts";
 
 export function handleStatus(): Response {
   const accounts = listAccounts();
@@ -95,16 +95,16 @@ export function handleGetConfig(): Response {
 
 export async function handleSetConfig(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as {
+    const body = await readJson<{
       strategy?: string;
       stickyLimit?: number;
       port?: number;
       require_client_auth?: string | boolean;
-    };
+    }>(req);
 
     if (body.strategy !== undefined) {
       if (body.strategy !== "fill-first" && body.strategy !== "round-robin") {
-        return json({ error: "strategy must be fill-first or round-robin" }, 400);
+        return errorResponse(400, "strategy must be fill-first or round-robin");
       }
       setSetting("strategy", body.strategy);
     }
@@ -112,7 +112,7 @@ export async function handleSetConfig(req: Request): Promise<Response> {
     if (body.stickyLimit !== undefined) {
       const value = Number(body.stickyLimit);
       if (!Number.isInteger(value) || value < 1 || value > 100) {
-        return json({ error: "stickyLimit must be an integer 1-100" }, 400);
+        return errorResponse(400, "stickyLimit must be an integer 1-100");
       }
       setSetting("sticky_limit", String(value));
     }
@@ -120,7 +120,7 @@ export async function handleSetConfig(req: Request): Promise<Response> {
     if (body.port !== undefined) {
       const value = Number(body.port);
       if (!Number.isInteger(value) || value < 1 || value > 65535) {
-        return json({ error: "port must be 1-65535" }, 400);
+        return errorResponse(400, "port must be 1-65535");
       }
       setSetting("proxy_port", String(value));
     }
@@ -133,7 +133,7 @@ export async function handleSetConfig(req: Request): Promise<Response> {
             ? "false"
             : null;
       if (!normalized) {
-        return json({ error: "require_client_auth must be true or false" }, 400);
+        return errorResponse(400, "require_client_auth must be true or false");
       }
       setSetting("require_client_auth", normalized);
     }
@@ -146,7 +146,7 @@ export async function handleSetConfig(req: Request): Promise<Response> {
       require_client_auth: getSetting("require_client_auth") ?? "false",
     });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 

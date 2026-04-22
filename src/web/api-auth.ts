@@ -9,7 +9,7 @@ import {
 import { startCallbackListener } from "../auth/server.ts";
 import { ensureProviderServer } from "../proxy/server.ts";
 import { getProviderLock, PROVIDERS } from "../providers/registry.ts";
-import { json } from "./api-http.ts";
+import { errorResponse, handleApiError, json, readJson } from "./api-http.ts";
 
 // Pending auth-code callback listeners keyed by session_id.
 interface PendingListener {
@@ -23,7 +23,7 @@ const pendingListeners = new Map<string, PendingListener>();
 const CALLBACK_POLL_WAIT_MS = 8_000;
 const PENDING_LISTENER_TTL_MS = 15 * 60 * 1000;
 
-setInterval(() => {
+const pendingListenerSweep = setInterval(() => {
   const now = Date.now();
   for (const [sessionId, pending] of pendingListeners) {
     if (pending.done || now - pending.createdAt <= PENDING_LISTENER_TTL_MS) continue;
@@ -35,26 +35,27 @@ setInterval(() => {
     pendingListeners.delete(sessionId);
   }
 }, 60 * 1000);
+pendingListenerSweep.unref?.();
 
 export async function handleAuthStart(req: Request): Promise<Response> {
   try {
-    const body = await req.json().catch(() => ({})) as { provider?: string };
-    if (!body.provider) return json({ error: "provider is required" }, 400);
+    const body = await readJson<{ provider?: string }>(req, {});
+    if (!body.provider) return errorResponse(400, "provider is required");
     const providerId = body.provider;
     const meta = PROVIDERS[providerId];
-    if (!meta) return json({ error: `Unknown provider: ${providerId}` }, 400);
+    if (!meta) return errorResponse(400, `Unknown provider: ${providerId}`);
     const lock = getProviderLock(meta);
-    if (lock) return json({ error: lock.reason }, lock.kind === "deprecated" ? 410 : 503);
+    if (lock) return errorResponse(lock.kind === "deprecated" ? 410 : 503, lock.reason);
     const adapter = getAdapter(providerId);
-    if (!adapter) return json({ error: `No OAuth adapter for ${providerId}` }, 400);
+    if (!adapter) return errorResponse(400, `No OAuth adapter for ${providerId}`);
     if (adapter.flow !== "device_code") {
-      return json({ error: `Provider ${providerId} uses ${adapter.flow} - use /api/auth/authorize` }, 400);
+      return errorResponse(400, `Provider ${providerId} uses ${adapter.flow} - use /api/auth/authorize`);
     }
 
     const device = await startDeviceFlow(providerId);
     return json(device);
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
@@ -62,9 +63,9 @@ export async function handleAuthStart(req: Request): Promise<Response> {
 // device_code is accepted for legacy clients.
 export async function handleAuthPoll(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as { session_id?: string; device_code?: string };
+    const body = await readJson<{ session_id?: string; device_code?: string }>(req);
     const sessionId = body.session_id ?? body.device_code;
-    if (!sessionId) return json({ error: "session_id required" }, 400);
+    if (!sessionId) return errorResponse(400, "session_id required");
 
     const result = await pollDeviceFlow(sessionId);
     if (result.status === "complete") {
@@ -76,7 +77,7 @@ export async function handleAuthPoll(req: Request): Promise<Response> {
     }
     return json({ status: result.status === "slow_down" ? "pending" : result.status });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
@@ -84,12 +85,12 @@ export async function handleAuthPoll(req: Request): Promise<Response> {
 // Opens an ephemeral local HTTP listener for OAuth redirect and returns auth_url.
 export async function handleAuthAuthorize(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as { provider?: string; meta?: Record<string, unknown> };
-    if (!body.provider) return json({ error: "provider required" }, 400);
+    const body = await readJson<{ provider?: string; meta?: Record<string, unknown> }>(req);
+    if (!body.provider) return errorResponse(400, "provider required");
     const adapter = getAdapter(body.provider);
-    if (!adapter) return json({ error: `No OAuth adapter for ${body.provider}` }, 400);
+    if (!adapter) return errorResponse(400, `No OAuth adapter for ${body.provider}`);
     if (adapter.flow !== "authorization_code" && adapter.flow !== "authorization_code_pkce") {
-      return json({ error: `Provider ${body.provider} does not use authorization-code flow` }, 400);
+      return errorResponse(400, `Provider ${body.provider} does not use authorization-code flow`);
     }
 
     const listener = startCallbackListener({
@@ -138,7 +139,7 @@ export async function handleAuthAuthorize(req: Request): Promise<Response> {
       redirect_uri: started.redirectUri,
     });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
@@ -147,7 +148,7 @@ export async function handleAuthCallback(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url);
     const sessionId = url.searchParams.get("session_id");
-    if (!sessionId) return json({ error: "session_id required" }, 400);
+    if (!sessionId) return errorResponse(400, "session_id required");
     const pending = pendingListeners.get(sessionId);
     if (!pending) return json({ status: "expired" });
     if (pending.done) return json({ status: "expired" });
@@ -190,9 +191,9 @@ export async function handleAuthCallback(req: Request): Promise<Response> {
 // Body: { provider: string; input: string; meta?: Record<string, unknown> }.
 export async function handleAuthImport(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as { provider?: string; input?: string; meta?: Record<string, unknown> };
-    if (!body.provider) return json({ error: "provider required" }, 400);
-    if (!body.input) return json({ error: "input required" }, 400);
+    const body = await readJson<{ provider?: string; input?: string; meta?: Record<string, unknown> }>(req);
+    if (!body.provider) return errorResponse(400, "provider required");
+    if (!body.input) return errorResponse(400, "input required");
     const connection = await importToken(body.provider, body.input, body.meta);
     ensureProviderServer(body.provider);
     return json({ status: "complete", account: connection });

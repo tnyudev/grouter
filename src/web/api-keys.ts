@@ -6,7 +6,7 @@ import {
   parseAllowedProviders,
   updateClientKey,
 } from "../db/client_keys.ts";
-import { json } from "./api-http.ts";
+import { errorResponse, handleApiError, json, readJson } from "./api-http.ts";
 
 function normalizeAllowedProvidersInput(raw: unknown): string[] | null | undefined {
   if (raw === undefined) return undefined;
@@ -34,30 +34,30 @@ export function handleListClientKeys(): Response {
 
 export async function handleCreateClientKey(req: Request): Promise<Response> {
   try {
-    const body = await req.json() as {
+    const body = await readJson<{
       name?: string;
       allowed_providers?: string[] | null;
       token_limit?: number;
       api_key?: string;
       expires_at?: string | null;
-    };
+    }>(req);
 
     const name = body.name?.trim();
-    if (!name) return json({ error: "Missing name" }, 400);
+    if (!name) return errorResponse(400, "Missing name");
 
     const allowedProviders = normalizeAllowedProvidersInput(body.allowed_providers);
     if (allowedProviders === undefined) {
-      return json({ error: "allowed_providers must be an array of provider ids or null" }, 400);
+      return errorResponse(400, "allowed_providers must be an array of provider ids or null");
     }
 
     const tokenLimit = Number(body.token_limit ?? 0);
     if (!Number.isInteger(tokenLimit) || tokenLimit < 0) {
-      return json({ error: "token_limit must be a non-negative integer" }, 400);
+      return errorResponse(400, "token_limit must be a non-negative integer");
     }
 
     const expiresAt = normalizeExpiresAtInput(body.expires_at);
     if (expiresAt === undefined) {
-      return json({ error: "expires_at must be a valid ISO date or null" }, 400);
+      return errorResponse(400, "expires_at must be a valid ISO date or null");
     }
 
     const key = body.api_key?.trim() || "grouter-sk-" + crypto.randomUUID().replace(/-/g, "");
@@ -71,9 +71,9 @@ export async function handleCreateClientKey(req: Request): Promise<Response> {
     return json({ ok: true, key, client_key: getClientKey(key) });
   } catch (err) {
     if (String(err).includes("UNIQUE constraint failed")) {
-      return json({ error: "Client key already exists" }, 409);
+      return errorResponse(409, "Client key already exists");
     }
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
 
@@ -84,15 +84,15 @@ export function handleDeleteClientKey(key: string): Response {
 
 export async function handleUpdateClientKey(req: Request, key: string): Promise<Response> {
   try {
-    const body = await req.json() as {
+    const body = await readJson<{
       name?: string;
       allowed_providers?: string[] | null;
       token_limit?: number;
       expires_at?: string | null;
-    };
+    }>(req);
 
     const existing = getClientKey(key);
-    if (!existing) return json({ error: "Key not found" }, 404);
+    if (!existing) return errorResponse(404, "Key not found");
 
     const hasAnyField =
       body.name !== undefined ||
@@ -100,15 +100,15 @@ export async function handleUpdateClientKey(req: Request, key: string): Promise<
       body.token_limit !== undefined ||
       body.expires_at !== undefined;
     if (!hasAnyField) {
-      return json({ error: "No fields provided for update" }, 400);
+      return errorResponse(400, "No fields provided for update");
     }
 
     const name = body.name !== undefined ? body.name.trim() : existing.name;
-    if (!name) return json({ error: "Missing name" }, 400);
+    if (!name) return errorResponse(400, "Missing name");
 
     const allowedProvidersRaw = normalizeAllowedProvidersInput(body.allowed_providers);
     if (body.allowed_providers !== undefined && allowedProvidersRaw === undefined) {
-      return json({ error: "allowed_providers must be an array of provider ids or null" }, 400);
+      return errorResponse(400, "allowed_providers must be an array of provider ids or null");
     }
     const allowedProviders =
       body.allowed_providers !== undefined
@@ -117,12 +117,12 @@ export async function handleUpdateClientKey(req: Request, key: string): Promise<
 
     const tokenLimit = body.token_limit !== undefined ? Number(body.token_limit) : existing.token_limit;
     if (!Number.isInteger(tokenLimit) || tokenLimit < 0) {
-      return json({ error: "token_limit must be a non-negative integer" }, 400);
+      return errorResponse(400, "token_limit must be a non-negative integer");
     }
 
     const expiresAtRaw = normalizeExpiresAtInput(body.expires_at);
     if (body.expires_at !== undefined && expiresAtRaw === undefined) {
-      return json({ error: "expires_at must be a valid ISO date or null" }, 400);
+      return errorResponse(400, "expires_at must be a valid ISO date or null");
     }
     const expiresAt = body.expires_at !== undefined ? (expiresAtRaw ?? null) : existing.expires_at;
 
@@ -134,6 +134,6 @@ export async function handleUpdateClientKey(req: Request, key: string): Promise<
     });
     return json({ ok: true, client_key: getClientKey(key) });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    return handleApiError(err);
   }
 }
