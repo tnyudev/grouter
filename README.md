@@ -21,6 +21,7 @@ Run Claude Code, GitHub Copilot, Gemini CLI, Kiro, Kimi, KiloCode, Cursor and 15
 - [Per-provider ports](#per-provider-ports)
 - [Dashboard](#dashboard)
 - [How it works](#how-it-works)
+- [Architecture](#architecture)
 - [Development](#development)
 - [Contributing](#contributing)
 - [Support](#support)
@@ -94,6 +95,10 @@ Recent hardening updates shipped on **April 21, 2026**:
 - Added `bun run assets:benchmark` to measure logo pack size, animation payload size, and final binary size.
 - Added safe static asset delivery optimization for dashboard assets (`ETag`/`304` and gzip for `/public/animation.js` when supported).
 - Hardened CORS defaults for dashboard/API responses: allow-origin is now opt-in via `GROUTER_CORS_ALLOW_ALL=true` or `GROUTER_CORS_ALLOW_ORIGIN=https://your-origin`.
+- Standardized dashboard API parsing/error helpers (`src/web/api-http.ts`) to reduce handler duplication and keep response behavior consistent.
+- Added API HTTP helper tests and smoke E2E coverage (`tests/api-http.test.ts`, `tests/e2e-smoke.test.ts`) for startup/health/status/CORS.
+- Fixed OAuth callback-listener sweeper timer to `unref()` so short-lived test/runtime processes can exit cleanly.
+- Tightened CI gate to fail on TypeScript errors and always execute `bun test`.
 - Finalized CLI status output cleanup to remove encoding artifacts and keep terminal-safe output.
 - Kept CI-style validation for this branch: `bun test` and `bun run build` passing.
 
@@ -231,6 +236,13 @@ Visit `http://localhost:3099/dashboard` once the proxy is running.
 - **Auto token refresh** - each adapter owns its refresh logic; GitHub's short-lived copilot token is cached separately in `provider_data`.
 - **Rotation strategies** - `fill-first` (stay on highest-priority until it rate-limits) or `round-robin` (cycle with configurable stickiness).
 - **Zero external services** - everything runs locally, data lives in `~/.grouter/grouter.db` (SQLite).
+
+---
+
+## Architecture
+
+- High-level architecture and module boundaries are documented in [`architecture.md`](./architecture.md).
+- Agent-oriented implementation details and contributor guardrails are in [`AGENTS.md`](./AGENTS.md).
 
 ---
 
